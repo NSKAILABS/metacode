@@ -1,5 +1,13 @@
 """
 Main application window with step-by-step wizard navigation.
+
+Workflow order:
+  1. RCWA Sim      — Unit cell simulation (generates phase library)
+  2. Wavelength    — Select design wavelength (or use RCWA data)
+  3. Phase Curve   — View FDTD / RCWA phase data
+  4. Phase Design  — Design phase mask
+  5. GDSII Export  — Generate fabrication layout
+  6. Analysis      — Optical performance metrics
 """
 
 from PyQt6.QtWidgets import (
@@ -15,21 +23,21 @@ from gui.theme import (
     DARK_STYLESHEET, STEP_ACTIVE_BG, STEP_ACTIVE_FG,
     STEP_DONE_BG, STEP_DONE_FG, STEP_INACTIVE_BG, STEP_INACTIVE_FG
 )
+from gui.rcwa_page import RCWAPage
 from gui.wavelength_page import WavelengthPage
 from gui.phase_curve_page import PhaseCurvePage
 from gui.phase_design_page import PhaseDesignPage
 from gui.gds_page import GDSPage
 from gui.analysis_page import AnalysisPage
-from gui.rcwa_page import RCWAPage
 
 
 STEPS = [
+    ("RCWA Sim", "Unit cell electromagnetic simulation"),
     ("Wavelength", "Select design wavelength"),
-    ("Phase Curve", "View FDTD phase data"),
+    ("Phase Curve", "View phase-vs-dimension data"),
     ("Phase Design", "Design phase mask"),
     ("GDSII Export", "Generate fabrication layout"),
     ("Analysis", "Optical performance metrics"),
-    ("RCWA Sim", "Electromagnetic wave simulation"),
 ]
 
 
@@ -136,22 +144,22 @@ class MetaOpticsMainWindow(QMainWindow):
         sep.setStyleSheet("color: #303560;")
         main_layout.addWidget(sep)
 
-        # Stacked pages
+        # Stacked pages — NEW ORDER: RCWA first
         self.pages = QStackedWidget()
 
-        self.wl_page = WavelengthPage(self.data_store)
-        self.pc_page = PhaseCurvePage(self.data_store)
-        self.pd_page = PhaseDesignPage(self.design)
-        self.gds_page = GDSPage(self.design)
-        self.analysis_page = AnalysisPage(self.design)
-        self.rcwa_page = RCWAPage(self.design)
+        self.rcwa_page = RCWAPage(self.design)          # Step 1
+        self.wl_page = WavelengthPage(self.data_store)   # Step 2
+        self.pc_page = PhaseCurvePage(self.data_store)    # Step 3
+        self.pd_page = PhaseDesignPage(self.design)       # Step 4
+        self.gds_page = GDSPage(self.design)              # Step 5
+        self.analysis_page = AnalysisPage(self.design)    # Step 6
 
+        self.pages.addWidget(self.rcwa_page)
         self.pages.addWidget(self.wl_page)
         self.pages.addWidget(self.pc_page)
         self.pages.addWidget(self.pd_page)
         self.pages.addWidget(self.gds_page)
         self.pages.addWidget(self.analysis_page)
-        self.pages.addWidget(self.rcwa_page)
 
         main_layout.addWidget(self.pages, stretch=1)
 
@@ -187,6 +195,7 @@ class MetaOpticsMainWindow(QMainWindow):
     def _connect_signals(self):
         self.wl_page.wavelength_selected.connect(self._on_wavelength_selected)
         self.pd_page.design_ready.connect(self._on_design_ready)
+        self.rcwa_page.sweep_data_ready.connect(self._on_rcwa_data_ready)
 
     def _on_wavelength_selected(self, wl: int):
         entry = self.data_store.get_entry(wl)
@@ -206,6 +215,10 @@ class MetaOpticsMainWindow(QMainWindow):
     def _on_design_ready(self):
         pass  # Design state already updated by PhaseDesignPage
 
+    def _on_rcwa_data_ready(self):
+        """RCWA sweep data pushed into DesignState — can skip wavelength page."""
+        pass
+
     def _update_step(self, step: int):
         self.current_step = step
         self.pages.setCurrentIndex(step)
@@ -219,24 +232,34 @@ class MetaOpticsMainWindow(QMainWindow):
             self.btn_next.setText("Next →")
 
     def _go_next(self):
+        # Step-specific logic (0-indexed with new order)
         if self.current_step == 0:
-            if self.design.wavelength == 0:
-                return  # must select wavelength
-            self.pc_page.update_for_wavelength(self.design.wavelength)
+            # RCWA → Wavelength: RCWA is optional, can skip
+            pass
 
         elif self.current_step == 1:
-            pass  # proceed to design
+            # Wavelength → Phase Curve
+            if self.design.wavelength == 0 and self.design.dimensions is None:
+                return  # must either select wavelength or have RCWA data
+            if self.design.wavelength > 0:
+                self.pc_page.update_for_wavelength(self.design.wavelength)
 
         elif self.current_step == 2:
+            # Phase Curve → Phase Design
+            pass
+
+        elif self.current_step == 3:
+            # Phase Design → GDS Export
             if self.design.phase_mask is None:
                 return  # must design phase mask
 
-        elif self.current_step == 3:
+        elif self.current_step == 4:
+            # GDS Export → Analysis
             self.gds_page.refresh_summary()
 
         if self.current_step < len(STEPS) - 1:
             next_step = self.current_step + 1
-            if next_step == 3:
+            if next_step == 4:
                 self.gds_page.refresh_summary()
             self._update_step(next_step)
 
