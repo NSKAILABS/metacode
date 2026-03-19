@@ -1,5 +1,24 @@
-\.menv
-\.venv
+**pycache**/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.env
+.env.*
+.vscode/
+.DS_Store
+Thumbs.db
+*.log
+build/
+dist/
+*.egg-info/
+.ipynb_checkpoints/
+.pytest_cache/
+.coverage
+htmlcov/
+*.dockerignore
+outputs/
+**/**pycache**/
 
 \docs
-
