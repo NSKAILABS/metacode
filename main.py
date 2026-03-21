@@ -20,7 +20,7 @@ from gui.theme import DARK_STYLESHEET
 
 # ── Application metadata ──
 APP_VERSION = "1.0.0"
-LICENSE_SERVER_URL = "http://localhost:8000"
+LICENSE_SERVER_URL = "https://dghfngbdfvxc-metaopticsai-license-server.hf.space"
 
 
 def main():

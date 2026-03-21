@@ -47,7 +47,6 @@ class ValidationWorker(QThread):
 # ═══════════════════════════════════════════════════════════════════════
 # Startup Validation Splash
 # ═══════════════════════════════════════════════════════════════════════
-
 class LicenseCheckSplash(QDialog):
     """
     Shown on startup while validating the license.
@@ -164,7 +163,7 @@ class LicenseActivationDialog(QDialog):
 
     activated = pyqtSignal(object)  # ValidationResult
 
-    PURCHASE_URL = "https://yourcompany.com/pricing"
+    PURCHASE_URL = "https://dghfngbdfvxc-metaopticsai-license-server.hf.space/pricing"
 
     def __init__(self, validator: LicenseValidator,
                  message: str = "", parent=None):
@@ -371,7 +370,7 @@ class LicenseActivationDialog(QDialog):
 class ExpiryWarningDialog(QDialog):
     """Shown when license is valid but expiring soon (< 7 days)."""
 
-    RENEW_URL = "https://yourcompany.com/renew"
+    RENEW_URL = "https://dghfngbdfvxc-metaopticsai-license-server.hf.space/renew"
 
     def __init__(self, days_remaining: int, plan_type: str, parent=None):
         super().__init__(parent)
