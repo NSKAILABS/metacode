@@ -50,7 +50,7 @@ OFFLINE_GRACE_DAYS = 3
 REVALIDATION_HOURS = 24
 
 # License server default URL
-DEFAULT_LICENSE_SERVER = "https://license.yourcompany.com"
+DEFAULT_LICENSE_SERVER = "https://dghfngbdfvxc-metaopticsai-license-server.hf.space"
 
 
 # ═══════════════════════════════════════════════════════════════════════
