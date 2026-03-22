@@ -10,10 +10,14 @@ Run: python main.py
 import sys
 import os
 
+ 
+# Ensure proper high-DPI scaling on Windows
+os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
 # Ensure the project root is on the path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from PyQt6.QtWidgets import QApplication
+from PyQt6.QtGui import QFont
 from PyQt6.QtGui import QFont
 from gui.main_window import MetaOpticsMainWindow
 from gui.theme import DARK_STYLESHEET
@@ -26,11 +30,13 @@ LICENSE_SERVER_URL = "https://dghfngbdfvxc-metaopticsai-license-server.hf.space"
 def main():
     app = QApplication(sys.argv)
     app.setApplicationName("MetaOpticsAI")
+    app.setApplicationVersion("1.0.0")
     app.setOrganizationName("NSK AI Labs")
 
     app.setStyleSheet(DARK_STYLESHEET)
 
-    font = QFont("Segoe UI", 11)
+    font = QFont("Segoe UI", 10)
+    font.setStyleHint(QFont.StyleHint.SansSerif)
     app.setFont(font)
 
     skip_license = "--skip-license" in sys.argv

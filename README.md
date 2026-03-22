@@ -24,7 +24,7 @@ The RCWA engine implements the formulation from:
 ## Project Structure
 
 ```
-MetaOpticsAI/
+metacode/
 ├── main.py                          # Application entry point
 ├── requirements.txt                 # Python dependencies
 ├── README.md
