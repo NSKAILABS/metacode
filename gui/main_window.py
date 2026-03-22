@@ -1,272 +1,425 @@
 """
-Main application window with step-by-step wizard navigation.
+Main Window — Dockable GUI Architecture
+========================================
 
-Workflow order:
-  1. RCWA Sim      — Unit cell simulation (generates phase library)
-  2. Wavelength    — Select design wavelength (or use RCWA data)
-  3. Phase Curve   — View FDTD / RCWA phase data
-  4. Phase Design  — Design phase mask
-  5. GDSII Export  — Generate fabrication layout
-  6. Analysis      — Optical performance metrics
+The primary QMainWindow for MetaOpticsAI v2.0 with a fully dockable interface.
+
+Layout:
+    ┌────────────────────────────────────────────────────────────────┐
+    │  Menu Bar: File | View | Optimization | Help                  │
+    ├──────────────┬─────────────────────────────┬───────────────────┤
+    │ Simulation   │   OPTIMIZATION DASHBOARD    │  Target Response  │
+    │   Setup      │     (Central Widget)        │                   │
+    │   [DOCK]     │   - Loss Curve              │     [DOCK]        │
+    │              │   - Spectrum Comparison     │                   │
+    ├──────────────┤   - Structure Viewer        ├───────────────────┤
+    │  Geometry    │                             │  Optimization     │
+    │ Optimization │                             │    Controls       │
+    │   [DOCK]     │                             │     [DOCK]        │
+    ├──────────────┴─────────────────────────────┴───────────────────┤
+    │  Log Console [DOCK]                                            │
+    └────────────────────────────────────────────────────────────────┘
+
+Features:
+    - All panels are QDockWidgets (draggable, tabbable, floatable)
+    - View menu toggles dock visibility
+    - Reset Layout restores default arrangement
+    - Keyboard shortcuts (F5 = Start, Shift+F5 = Stop)
 """
 
+from typing import Optional
+
 from PyQt6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QStackedWidget, QFrame, QSizePolicy
+    QMainWindow, QDockWidget, QWidget, QVBoxLayout, QHBoxLayout,
+    QMenuBar, QMenu, QStatusBar, QLabel, QMessageBox, QApplication
 )
-from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QFont
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QAction, QKeySequence, QFont, QIcon
 
-from core.meta_data import MetaDataStore
-from core.design import DesignState
+# Import dock widgets
+from gui.docks.simulation_setup_dock import SimulationSetupDock
+from gui.docks.geometry_dock import GeometryOptimizationDock
+from gui.docks.target_response_dock import TargetResponseDock
+from gui.docks.optimization_controls_dock import OptimizationControlsDock
+from gui.docks.log_dock import LogDock
+
+# Import central widget
+from gui.widgets.optimization_dashboard import OptimizationDashboard
+
+# Theme colors
 from gui.theme import (
-    DARK_STYLESHEET, STEP_ACTIVE_BG, STEP_ACTIVE_FG,
-    STEP_DONE_BG, STEP_DONE_FG, STEP_INACTIVE_BG, STEP_INACTIVE_FG
+    C_ACCENT_PRIMARY, C_SUCCESS, C_WARNING, C_ERROR, C_TEXT_MUTED
 )
-from gui.rcwa_page import RCWAPage
-from gui.wavelength_page import WavelengthPage
-from gui.phase_curve_page import PhaseCurvePage
-from gui.phase_design_page import PhaseDesignPage
-from gui.gds_page import GDSPage
-from gui.analysis_page import AnalysisPage
-
-
-STEPS = [
-    ("RCWA Sim", "Unit cell electromagnetic simulation"),
-    ("Wavelength", "Select design wavelength"),
-    ("Phase Curve", "View phase-vs-dimension data"),
-    ("Phase Design", "Design phase mask"),
-    ("GDSII Export", "Generate fabrication layout"),
-    ("Analysis", "Optical performance metrics"),
-]
-
-
-class StepIndicator(QWidget):
-    """Horizontal step progress indicator."""
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.step_labels = []
-        self._setup_ui()
-
-    def _setup_ui(self):
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(20, 8, 20, 8)
-        layout.setSpacing(4)
-
-        for idx, (name, desc) in enumerate(STEPS):
-            lbl = QLabel(f"  {idx+1}. {name}  ")
-            lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            lbl.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
-            lbl.setMinimumHeight(36)
-            lbl.setStyleSheet(
-                f"background: {STEP_INACTIVE_BG}; color: {STEP_INACTIVE_FG}; "
-                f"border-radius: 6px; padding: 4px 12px;"
-            )
-            self.step_labels.append(lbl)
-            layout.addWidget(lbl)
-
-            if idx < len(STEPS) - 1:
-                arrow = QLabel("›")
-                arrow.setStyleSheet("color: #404580; font-size: 18px; background: transparent;")
-                arrow.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                layout.addWidget(arrow)
-
-    def set_active(self, step_idx: int):
-        for i, lbl in enumerate(self.step_labels):
-            if i < step_idx:
-                lbl.setStyleSheet(
-                    f"background: {STEP_DONE_BG}; color: {STEP_DONE_FG}; "
-                    f"border-radius: 6px; padding: 4px 12px;"
-                )
-            elif i == step_idx:
-                lbl.setStyleSheet(
-                    f"background: {STEP_ACTIVE_BG}; color: {STEP_ACTIVE_FG}; "
-                    f"border-radius: 6px; padding: 4px 12px;"
-                )
-            else:
-                lbl.setStyleSheet(
-                    f"background: {STEP_INACTIVE_BG}; color: {STEP_INACTIVE_FG}; "
-                    f"border-radius: 6px; padding: 4px 12px;"
-                )
 
 
 class MetaOpticsMainWindow(QMainWindow):
-    """Main application window."""
-
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("MetaOpticsAI — Photonics Design Platform")
-        self.setMinimumSize(1050, 720)
-        self.resize(1150, 780)
-
-        self.data_store = MetaDataStore()
-        self.design = DesignState()
-        self.current_step = 0
-
-        self._setup_ui()
-        self._connect_signals()
-        self._update_step(0)
-
-    def _setup_ui(self):
-        central = QWidget()
-        self.setCentralWidget(central)
-        main_layout = QVBoxLayout(central)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
-
-        # Title bar
-        title_bar = QWidget()
-        title_bar.setStyleSheet("background: #12132a; padding: 8px;")
-        tb_layout = QHBoxLayout(title_bar)
-        tb_layout.setContentsMargins(20, 6, 20, 6)
-
-        app_title = QLabel("MetaOpticsAI")
-        app_title.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
-        app_title.setStyleSheet("color: #7eb8ff; background: transparent;")
-        tb_layout.addWidget(app_title)
-
-        subtitle = QLabel("AI-Automated Photonics Design")
-        subtitle.setStyleSheet("color: #606888; font-size: 13px; background: transparent;")
-        tb_layout.addWidget(subtitle)
-        tb_layout.addStretch()
-
-        main_layout.addWidget(title_bar)
-
-        # Step indicator
-        self.step_indicator = StepIndicator()
-        self.step_indicator.setStyleSheet("background: #16172e;")
-        main_layout.addWidget(self.step_indicator)
-
-        # Separator
-        sep = QFrame()
-        sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet("color: #303560;")
-        main_layout.addWidget(sep)
-
-        # Stacked pages — NEW ORDER: RCWA first
-        self.pages = QStackedWidget()
-
-        self.rcwa_page = RCWAPage(self.design)          # Step 1
-        self.wl_page = WavelengthPage(self.data_store)   # Step 2
-        self.pc_page = PhaseCurvePage(self.data_store)    # Step 3
-        self.pd_page = PhaseDesignPage(self.design)       # Step 4
-        self.gds_page = GDSPage(self.design)              # Step 5
-        self.analysis_page = AnalysisPage(self.design)    # Step 6
-
-        self.pages.addWidget(self.rcwa_page)
-        self.pages.addWidget(self.wl_page)
-        self.pages.addWidget(self.pc_page)
-        self.pages.addWidget(self.pd_page)
-        self.pages.addWidget(self.gds_page)
-        self.pages.addWidget(self.analysis_page)
-
-        main_layout.addWidget(self.pages, stretch=1)
-
-        # Navigation bar
-        nav_bar = QWidget()
-        nav_bar.setStyleSheet("background: #12132a;")
-        nav_layout = QHBoxLayout(nav_bar)
-        nav_layout.setContentsMargins(20, 8, 20, 8)
-
-        self.btn_prev = QPushButton("← Previous")
-        self.btn_prev.clicked.connect(self._go_prev)
-        nav_layout.addWidget(self.btn_prev)
-
-        self.btn_start_new = QPushButton("Start New")
-        self.btn_start_new.clicked.connect(self._start_new)
-        nav_layout.addWidget(self.btn_start_new)
-
-        nav_layout.addStretch()
-
-        self.step_desc = QLabel("")
-        self.step_desc.setStyleSheet("color: #606888; font-size: 12px; background: transparent;")
-        nav_layout.addWidget(self.step_desc)
-
-        nav_layout.addStretch()
-
-        self.btn_next = QPushButton("Next →")
-        self.btn_next.setObjectName("primary")
-        self.btn_next.clicked.connect(self._go_next)
-        nav_layout.addWidget(self.btn_next)
-
-        main_layout.addWidget(nav_bar)
-
-    def _connect_signals(self):
-        self.wl_page.wavelength_selected.connect(self._on_wavelength_selected)
-        self.pd_page.design_ready.connect(self._on_design_ready)
-        self.rcwa_page.sweep_data_ready.connect(self._on_rcwa_data_ready)
-
-    def _on_wavelength_selected(self, wl: int):
-        entry = self.data_store.get_entry(wl)
-        if entry:
-            self.design.wavelength = wl
-            self.design.shape = entry.shape
-            self.design.material = entry.material
-            self.design.height = entry.height
-            self.design.period = entry.period
-            self.design.dimensions = entry.dimensions
-            self.design.phases = entry.phases
-            self.design.transmissions = entry.transmissions
-            self.design.cross_width = entry.cross_width or 0
-            self.design.fin_width = entry.fin_width or 0
-            self.design.fin_length = entry.fin_length or 0
-
-    def _on_design_ready(self):
-        pass  # Design state already updated by PhaseDesignPage
-
-    def _on_rcwa_data_ready(self):
-        """RCWA sweep data pushed into DesignState — can skip wavelength page."""
-        pass
-
-    def _update_step(self, step: int):
-        self.current_step = step
-        self.pages.setCurrentIndex(step)
-        self.step_indicator.set_active(step)
-        self.step_desc.setText(STEPS[step][1])
-        self.btn_prev.setEnabled(step > 0)
-
-        if step == len(STEPS) - 1:
-            self.btn_next.setText("Finish")
+    """
+    Main application window with dockable panels.
+    
+    The window consists of:
+        - Central widget: OptimizationDashboard (live plots)
+        - Left docks: SimulationSetup + GeometryOptimization (tabbed)
+        - Right docks: TargetResponse + OptimizationControls (tabbed)
+        - Bottom dock: LogConsole
+    
+    Signals:
+        optimization_started: Emitted when optimization begins
+        optimization_stopped: Emitted when optimization ends
+    """
+    
+    optimization_started = pyqtSignal()
+    optimization_stopped = pyqtSignal()
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        
+        self.setWindowTitle("MetaOpticsAI — Inverse Design Platform")
+        self.setMinimumSize(1400, 900)
+        self.resize(1600, 1000)
+        
+        # Enable dock nesting and tabbing
+        self.setDockNestingEnabled(True)
+        self.setDockOptions(
+            QMainWindow.DockOption.AllowTabbedDocks |
+            QMainWindow.DockOption.AllowNestedDocks |
+            QMainWindow.DockOption.AnimatedDocks
+        )
+        
+        # Setup UI components
+        self._setup_menu_bar()
+        self._setup_status_bar()
+        self._setup_central_widget()
+        self._setup_dock_widgets()
+        self._setup_connections()
+        
+        # Store default state for layout reset
+        self._default_state = self.saveState()
+    
+    def _setup_menu_bar(self):
+        """Create the menu bar."""
+        menubar = self.menuBar()
+        
+        # ── File Menu ──
+        file_menu = menubar.addMenu("&File")
+        
+        new_action = QAction("&New Project", self)
+        new_action.setShortcut(QKeySequence.StandardKey.New)
+        file_menu.addAction(new_action)
+        
+        open_action = QAction("&Open Project...", self)
+        open_action.setShortcut(QKeySequence.StandardKey.Open)
+        file_menu.addAction(open_action)
+        
+        save_action = QAction("&Save Project", self)
+        save_action.setShortcut(QKeySequence.StandardKey.Save)
+        file_menu.addAction(save_action)
+        
+        file_menu.addSeparator()
+        
+        export_gds_action = QAction("Export &GDS...", self)
+        export_gds_action.setShortcut(QKeySequence("Ctrl+E"))
+        file_menu.addAction(export_gds_action)
+        
+        file_menu.addSeparator()
+        
+        exit_action = QAction("E&xit", self)
+        exit_action.setShortcut(QKeySequence.StandardKey.Quit)
+        exit_action.triggered.connect(self.close)
+        file_menu.addAction(exit_action)
+        
+        # ── View Menu ──
+        self.view_menu = menubar.addMenu("&View")
+        # Dock toggle actions will be added after docks are created
+        
+        # ── Optimization Menu ──
+        opt_menu = menubar.addMenu("&Optimization")
+        
+        self.start_action = QAction("▶ &Start Optimization", self)
+        self.start_action.setShortcut(QKeySequence("F5"))
+        self.start_action.triggered.connect(self._start_optimization)
+        opt_menu.addAction(self.start_action)
+        
+        self.stop_action = QAction("■ S&top Optimization", self)
+        self.stop_action.setShortcut(QKeySequence("Shift+F5"))
+        self.stop_action.triggered.connect(self._stop_optimization)
+        self.stop_action.setEnabled(False)
+        opt_menu.addAction(self.stop_action)
+        
+        opt_menu.addSeparator()
+        
+        clear_history_action = QAction("&Clear History", self)
+        clear_history_action.triggered.connect(self._clear_history)
+        opt_menu.addAction(clear_history_action)
+        
+        # ── Help Menu ──
+        help_menu = menubar.addMenu("&Help")
+        
+        about_action = QAction("&About MetaOpticsAI", self)
+        about_action.triggered.connect(self._show_about)
+        help_menu.addAction(about_action)
+        
+        docs_action = QAction("&Documentation", self)
+        docs_action.setShortcut(QKeySequence.StandardKey.HelpContents)
+        help_menu.addAction(docs_action)
+    
+    def _setup_status_bar(self):
+        """Create the status bar."""
+        self.statusbar = QStatusBar()
+        self.setStatusBar(self.statusbar)
+        
+        # Optimization status indicator
+        self.opt_status_label = QLabel("● Ready")
+        self.opt_status_label.setStyleSheet(f"color: {C_TEXT_MUTED};")
+        self.statusbar.addPermanentWidget(self.opt_status_label)
+        
+        self.statusbar.showMessage("Welcome to MetaOpticsAI v2.0")
+    
+    def _setup_central_widget(self):
+        """Create the central optimization dashboard."""
+        self.dashboard = OptimizationDashboard(parent=self)
+        self.setCentralWidget(self.dashboard)
+    
+    def _setup_dock_widgets(self):
+        """Create and position all dock widgets."""
+        
+        # ── Left Docks ──
+        
+        # Simulation Setup Dock
+        self.sim_setup_dock = QDockWidget("Simulation Setup", self)
+        self.sim_setup_dock.setObjectName("sim_setup_dock")
+        self.sim_setup_widget = SimulationSetupDock()
+        self.sim_setup_dock.setWidget(self.sim_setup_widget)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.sim_setup_dock)
+        
+        # Geometry Optimization Dock
+        self.geom_dock = QDockWidget("Geometry Optimization", self)
+        self.geom_dock.setObjectName("geom_dock")
+        self.geom_widget = GeometryOptimizationDock()
+        self.geom_dock.setWidget(self.geom_widget)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.geom_dock)
+        
+        # Tab left docks together
+        self.tabifyDockWidget(self.sim_setup_dock, self.geom_dock)
+        self.sim_setup_dock.raise_()  # Show sim setup on top
+        
+        # ── Right Docks ──
+        
+        # Target Response Dock
+        self.target_dock = QDockWidget("Target Response", self)
+        self.target_dock.setObjectName("target_dock")
+        self.target_widget = TargetResponseDock()
+        self.target_dock.setWidget(self.target_widget)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.target_dock)
+        
+        # Optimization Controls Dock
+        self.opt_controls_dock = QDockWidget("Optimization Controls", self)
+        self.opt_controls_dock.setObjectName("opt_controls_dock")
+        self.opt_controls_widget = OptimizationControlsDock()
+        self.opt_controls_dock.setWidget(self.opt_controls_widget)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.opt_controls_dock)
+        
+        # Tab right docks together
+        self.tabifyDockWidget(self.target_dock, self.opt_controls_dock)
+        self.target_dock.raise_()  # Show target on top
+        
+        # ── Bottom Dock ──
+        
+        # Log Console Dock
+        self.log_dock = QDockWidget("Log Console", self)
+        self.log_dock.setObjectName("log_dock")
+        self.log_widget = LogDock()
+        self.log_dock.setWidget(self.log_widget)
+        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.log_dock)
+        
+        # Set initial dock sizes
+        self.resizeDocks(
+            [self.sim_setup_dock, self.target_dock],
+            [350, 350],
+            Qt.Orientation.Horizontal
+        )
+        self.resizeDocks(
+            [self.log_dock],
+            [180],
+            Qt.Orientation.Vertical
+        )
+        
+        # ── Add dock toggle actions to View menu ──
+        self.view_menu.addAction(self.sim_setup_dock.toggleViewAction())
+        self.view_menu.addAction(self.geom_dock.toggleViewAction())
+        self.view_menu.addAction(self.target_dock.toggleViewAction())
+        self.view_menu.addAction(self.opt_controls_dock.toggleViewAction())
+        self.view_menu.addAction(self.log_dock.toggleViewAction())
+        
+        self.view_menu.addSeparator()
+        
+        reset_layout_action = QAction("&Reset Layout", self)
+        reset_layout_action.triggered.connect(self._reset_layout)
+        self.view_menu.addAction(reset_layout_action)
+    
+    def _setup_connections(self):
+        """Connect signals between components."""
+        # Dashboard log messages go to log widget
+        self.dashboard.log_message.connect(self.log_widget.log_info)
+        
+        # Optimization controls
+        self.opt_controls_widget.start_requested.connect(self._start_optimization)
+        self.opt_controls_widget.pause_requested.connect(self._pause_optimization)
+        self.opt_controls_widget.stop_requested.connect(self._stop_optimization)
+        
+        # Dashboard completion
+        self.dashboard.optimization_complete.connect(self._on_optimization_complete)
+    
+    def _start_optimization(self):
+        """Start the optimization process."""
+        if self.dashboard.is_running():
+            return
+        
+        # Collect parameters from all docks
+        sim_params = self.sim_setup_widget.get_parameters()
+        geom_params = self.geom_widget.get_parameters()
+        target_params = self.target_widget.get_target_spectrum()
+        opt_params = self.opt_controls_widget.get_parameters()
+        
+        # Check for trainable parameters
+        if not geom_params.get('trainable_params'):
+            QMessageBox.warning(
+                self,
+                "No Trainable Parameters",
+                "Please check at least one 'Optimize' checkbox in the "
+                "Geometry panel to mark parameters as trainable."
+            )
+            return
+        
+        # Log start
+        self.log_widget.log_optimization_start(opt_params)
+        
+        # Update UI
+        self.opt_controls_widget.set_running(True)
+        self.start_action.setEnabled(False)
+        self.stop_action.setEnabled(True)
+        self._update_status_indicator("running")
+        
+        # Start optimization
+        self.dashboard.start_optimization(
+            sim_params, geom_params, target_params, opt_params
+        )
+        
+        self.optimization_started.emit()
+    
+    def _pause_optimization(self):
+        """Pause/resume the optimization."""
+        self.dashboard.toggle_pause()
+        
+        if self.dashboard.is_paused():
+            self._update_status_indicator("paused")
         else:
-            self.btn_next.setText("Next →")
-
-    def _go_next(self):
-        # Step-specific logic (0-indexed with new order)
-        if self.current_step == 0:
-            # RCWA → Wavelength: RCWA is optional, can skip
-            pass
-
-        elif self.current_step == 1:
-            # Wavelength → Phase Curve
-            if self.design.wavelength == 0 and self.design.dimensions is None:
-                return  # must either select wavelength or have RCWA data
-            if self.design.wavelength > 0:
-                self.pc_page.update_for_wavelength(self.design.wavelength)
-
-        elif self.current_step == 2:
-            # Phase Curve → Phase Design
-            pass
-
-        elif self.current_step == 3:
-            # Phase Design → GDS Export
-            if self.design.phase_mask is None:
-                return  # must design phase mask
-
-        elif self.current_step == 4:
-            # GDS Export → Analysis
-            self.gds_page.refresh_summary()
-
-        if self.current_step < len(STEPS) - 1:
-            next_step = self.current_step + 1
-            if next_step == 4:
-                self.gds_page.refresh_summary()
-            self._update_step(next_step)
-
-    def _go_prev(self):
-        if self.current_step > 0:
-            self._update_step(self.current_step - 1)
-
-    def _start_new(self):
-        self.design.reset()
-        self._update_step(0)
+            self._update_status_indicator("running")
+    
+    def _stop_optimization(self):
+        """Stop the optimization process."""
+        self.dashboard.stop_optimization()
+        
+        # Update UI
+        self.opt_controls_widget.set_running(False)
+        self.start_action.setEnabled(True)
+        self.stop_action.setEnabled(False)
+        self._update_status_indicator("stopped")
+        
+        self.optimization_stopped.emit()
+    
+    def _on_optimization_complete(self, final_loss: float, iterations: int, converged: bool):
+        """Handle optimization completion."""
+        # Log completion
+        self.log_widget.log_optimization_complete(final_loss, iterations, converged)
+        
+        # Update UI
+        self.opt_controls_widget.set_running(False)
+        self.start_action.setEnabled(True)
+        self.stop_action.setEnabled(False)
+        
+        if converged:
+            self._update_status_indicator("converged")
+        else:
+            self._update_status_indicator("complete")
+        
+        self.optimization_stopped.emit()
+    
+    def _clear_history(self):
+        """Clear optimization history."""
+        self.dashboard.clear_history()
+        self.log_widget.clear()
+        self.geom_widget.clear_gradients()
+        self._update_status_indicator("ready")
+    
+    def _update_status_indicator(self, status: str):
+        """Update the status bar indicator."""
+        colors = {
+            'ready': C_TEXT_MUTED,
+            'running': C_SUCCESS,
+            'paused': C_WARNING,
+            'stopped': C_WARNING,
+            'converged': C_SUCCESS,
+            'complete': C_ACCENT_PRIMARY,
+            'error': C_ERROR,
+        }
+        labels = {
+            'ready': "● Ready",
+            'running': "● Running",
+            'paused': "● Paused",
+            'stopped': "● Stopped",
+            'converged': "● Converged",
+            'complete': "● Complete",
+            'error': "● Error",
+        }
+        
+        color = colors.get(status, C_TEXT_MUTED)
+        label = labels.get(status, "● Ready")
+        
+        self.opt_status_label.setText(label)
+        self.opt_status_label.setStyleSheet(f"color: {color}; font-weight: bold;")
+    
+    def _reset_layout(self):
+        """Reset dock layout to default."""
+        self.restoreState(self._default_state)
+        self.statusbar.showMessage("Layout reset to default", 3000)
+    
+    def _show_about(self):
+        """Show about dialog."""
+        QMessageBox.about(
+            self,
+            "About MetaOpticsAI",
+            "<h2>MetaOpticsAI v2.0</h2>"
+            "<p><b>AI-Automated Photonics Design Platform</b></p>"
+            "<p>Inverse design of metalenses and metasurfaces using "
+            "differentiable RCWA simulation and ML optimization.</p>"
+            "<hr>"
+            "<p><b>Features:</b></p>"
+            "<ul>"
+            "<li>RCWA electromagnetic simulation (MAXIM formulation)</li>"
+            "<li>Gradient-based inverse design with PyTorch/JAX</li>"
+            "<li>Real-time optimization visualization</li>"
+            "<li>GDSII export for fabrication</li>"
+            "</ul>"
+            "<hr>"
+            "<p>Developed at NIT Hamirpur under NSK AI Labs</p>"
+            "<p>© 2024 Dishant & Unisole Empower</p>"
+        )
+    
+    def closeEvent(self, event):
+        """Handle window close."""
+        if self.dashboard.is_running():
+            reply = QMessageBox.question(
+                self,
+                "Optimization Running",
+                "Optimization is still running. Are you sure you want to exit?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            
+            if reply == QMessageBox.StandardButton.No:
+                event.ignore()
+                return
+            
+            self.dashboard.stop_optimization()
+        
+        event.accept()
