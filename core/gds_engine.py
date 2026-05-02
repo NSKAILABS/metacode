@@ -10,7 +10,7 @@ from scipy.interpolate import interp1d
 from typing import Callable, Optional
 import time
 import os
-
+import uuid 
 # Activate generic PDK
 try:
     gf.gpdk.PDK.activate()
@@ -63,7 +63,7 @@ class GDSEngine:
 
         rows, cols = quantized_mask.shape
         m = min(rows, cols)
-        top = gf.Component("METALENS")
+        top = gf.Component(f"METALENS_{uuid.uuid4().hex[:6]}")
         cell_cache = {}
         ph_min, ph_max = float(np.min(ph_arr)), float(np.max(ph_arr))
         period_um = period / 1000.0
