@@ -2,7 +2,7 @@
 
 **AI-Automated Photonics Design Platform for Metalens & Metasurface Engineering**
 
-MetaOpticsAI is a desktop application that provides an end-to-end pipeline for designing, simulating, and analyzing flat optical metalenses. It integrates FDTD data management, phase mask generation, GDSII layout export, optical performance analysis, and RCWA electromagnetic simulation into a single PyQt6 GUI with a modern dark theme.
+MetaOpticsAI is a Opensource Research Community in nanophotonics. 
 
 The RCWA engine implements the formulation from:
 
@@ -10,22 +10,11 @@ The RCWA engine implements the formulation from:
 
 ---
 
-## Features
-
-- **6-step wizard workflow** — Wavelength Selection → Phase Curve → Phase Design → GDS Export → Optical Analysis → RCWA Simulation
-- **Built-in FDTD library** — 8 pre-loaded wavelengths (405 nm – 410 μm) across Silicon, TiO₂, and Nb₂O₅ with Cylinder, Cross, and Fin geometries
-- **Phase mask generation** — Fresnel zone lens, axicon, spiral phase plate, or import from image
-- **GDSII export** — Fabrication-ready layout using [gdsfactory 9.34.1](https://gdsfactory.github.io/gdsfactory/) with Cylinder, Cross, and Fin unit cells
-- **Optical analysis suite** — PSF, MTF, Strehl ratio, encircled energy, Zernike decomposition (15 terms), far-field propagation
-- **RCWA engine** — Full electromagnetic wave simulation with BTTB Fourier expansion, S-matrix method, Redheffer star product, and parametric sweep
-
----
 
 ## Project Structure
 
 ```
 metacode/
-├── main.py                          # Application entry point
 ├── requirements.txt                 # Python dependencies
 ├── README.md
 │
@@ -36,6 +25,7 @@ metacode/
 │   ├── gds_engine.py                # GDSII layout generation (gdsfactory 9.34.1)
 │   ├── design.py                    # DesignState dataclass (pipeline state container)
 │   └── rcwa_engine.py               # RCWA solver (MAXIM paper implementation)
+|   |__ automl.py
 │
 ├── analysis/                        # Optical performance metrics
 │   ├── __init__.py
@@ -45,18 +35,6 @@ metacode/
 │   ├── encircled_energy.py          # Encircled energy curve
 │   ├── zernike.py                   # Zernike polynomial decomposition (Noll indexing)
 │   └── farfield.py                  # Far-field intensity at arbitrary distance
-│
-├── gui/                             # PyQt6 interface (dark theme)
-│   ├── __init__.py
-│   ├── main_window.py               # 6-step wizard shell with step indicator
-│   ├── wavelength_page.py           # Step 1: Wavelength & material selection
-│   ├── phase_curve_page.py          # Step 2: Phase-vs-dimension curve visualization
-│   ├── phase_design_page.py         # Step 3: Phase mask design & quantization
-│   ├── gds_page.py                  # Step 4: GDS generation with progress tracking
-│   ├── analysis_page.py             # Step 5: PSF/MTF/Strehl/Zernike/far-field
-│   ├── rcwa_page.py                 # Step 6: RCWA parametric sweep & results
-│   └── theme.py                     # Dark theme stylesheet
-│
 ├── fdtd_data/                       # Directory for user-uploaded FDTD Excel files
 ├── assets/                          # Icons and images (placeholder)
 └── output/                          # Generated GDS and plot files
@@ -90,7 +68,6 @@ pip install -r requirements.txt
 
 | Package | Version | Purpose |
 |---------|---------|---------|
-| PyQt6 | ≥ 6.5 | GUI framework |
 | numpy | ≥ 1.24 | Numerical computation |
 | scipy | ≥ 1.10 | Eigenvalue solvers, interpolation |
 | matplotlib | ≥ 3.7 | Plotting (embedded in GUI) |
@@ -99,54 +76,6 @@ pip install -r requirements.txt
 | xlrd | ≥ 2.0 | Legacy Excel file reading (.xls) |
 | Pillow | ≥ 10.0 | Image loading for phase masks |
 
----
-
-## Usage
-
-### Launch
-
-```bash
-python main.py
-```
-
-### Workflow
-
-**Step 1 — Wavelength Selection**
-Select a built-in wavelength/material/shape combination (e.g., 633 nm Silicon Cylinder) or upload custom FDTD data from an Excel file with columns for dimension, phase, and transmission.
-
-**Step 2 — Phase Curve**
-View the interpolated phase-vs-dimension curve overlaid on the raw FDTD data points. The parameter panel shows wavelength, shape, material, height, period, and reference width.
-
-**Step 3 — Phase Design**
-Generate a phase mask using one of three built-in library functions or import from an image:
-
-| Function | Key Parameters | Formula |
-|----------|---------------|---------|
-| Fresnel Zone Lens | focal length, diameter | φ(r) = 2π − (2π/λ)(√(r² + f²) − f) mod 2π |
-| Axicon | cone angle, diameter | φ(r) = k(R − r)tan(α) mod 2π |
-| Spiral Phase Plate | topological charge | φ(θ) = l·θ mod 2π |
-
-Quantize the continuous phase to 2–32 discrete levels. Configure unit cells per pixel and circular aperture.
-
-**Step 4 — GDS Export**
-Generate a fabrication-ready GDSII file. The engine maps each quantized phase level to a physical dimension via cubic spline interpolation, creates the corresponding geometry (circle/cross/fin), and arrays unit cells within each pixel. Runs in a background thread with real-time progress tracking.
-
-**Step 5 — Optical Analysis**
-Run the full analysis suite on the current phase mask:
-
-| Metric | Method |
-|--------|--------|
-| PSF | Fraunhofer diffraction via 2D FFT with zero-padding |
-| MTF | Radially-averaged |FFT{PSF}| with diffraction-limited reference |
-| Strehl ratio | Peak(PSF_aberrated) / Peak(PSF_ideal); Maréchal criterion > 0.8 |
-| Encircled energy | Cumulative radial integration; reports radius for 84% energy |
-| Zernike decomposition | 15-term fit (Noll indexing): piston through spherical aberration |
-| Far-field | Fraunhofer diffraction at user-specified propagation distance |
-
-All plots can be exported as PNG files at 200 dpi.
-
-**Step 6 — RCWA Simulation**
-Configure a unit cell structure (shape, material refractive index, height, period) and run a parametric sweep over any geometric parameter. The RCWA engine computes complex transmission/reflection coefficients, phases, and diffraction efficiencies per order. Results are displayed as interactive plots and exportable CSV tables.
 
 ---
 
@@ -219,21 +148,6 @@ Supports user upload of custom Excel files (.xlsx/.xls) with dimension, phase, a
 
 ---
 
-## GUI Theme
-
-The application uses a custom dark theme optimized for long design sessions:
-
-| Element | Color |
-|---------|-------|
-| Background | `#1a1b2e` (deep blue-black) |
-| Accent (active) | `#7eb8ff` (blue) |
-| Success | `#6ecf6e` (green) |
-| Error | `#ff6b6b` (red) |
-| Step indicator (active) | `#3060c0` |
-| Step indicator (done) | `#2a8060` |
-| Plot background | `#1e2040` |
-
----
 
 ## References
 
@@ -247,20 +161,6 @@ The application uses a custom dark theme optimized for long design sessions:
 8. S. Molesky et al., "Inverse design in nanophotonics," *Nature Photonics*, vol. 12, pp. 659–670, 2018.
 9. A. Taflove and S. C. Hagness, *Computational Electrodynamics: The Finite-Difference Time-Domain Method*, 3rd ed., Artech House, 2005.
 10. P. Lalanne and G. M. Morris, "Highly improved convergence of the coupled-wave method for TM polarization," *J. Opt. Soc. Am. A*, vol. 13, pp. 779–784, 1996.
-
----
-
-## Modernization Notes
-
-This project is a modernized and extended version of the MetaOptics codebase originally developed at IIT Madras. Key changes:
-
-- **Python 3.11.9** compatibility (original targeted Python 2.7/3.6)
-- **PyQt6** replaces PyQt5/Tkinter
-- **gdsfactory 9.34.1** replaces gdspy for GDSII generation
-- **RCWA engine** added based on the MAXIM paper formulation
-- **Analysis suite** expanded with Zernike decomposition, encircled energy, and far-field propagation
-- **Dark theme GUI** with step-by-step wizard navigation
-- All modules use modern Python (dataclasses, type hints, f-strings)
 
 ---
 
