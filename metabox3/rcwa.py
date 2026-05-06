@@ -24,9 +24,9 @@ import tensorflow as tf
 import tqdm
 from scipy import interpolate
 import sys 
-sys.path.append(r"G:\\PhotonLabs\\src\\metabox")
-from metabox import raster, rcwa_tf, utils
-from metabox.utils import CoordType, Feature, Incidence, ParameterType
+sys.path.append(r"D:\\metacode\\metabox3")
+from metabox3 import raster, rcwa_tf, utils
+from metabox3.utils import CoordType, Feature, Incidence, ParameterType
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 

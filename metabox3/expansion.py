@@ -13,7 +13,7 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 import numpy as np
 import tensorflow as tf
 import sys 
-sys.path.append(r"G:\\PhotonLabs\\src\\metabox")
+sys.path.append(r"D:\\metacode\\metabox3")
 
 def expand_to_2d(tensor: tf.Tensor, basis_dir: str = "basis_data") -> tf.Tensor:
     """Function to expand a 1d field to a 2d field.

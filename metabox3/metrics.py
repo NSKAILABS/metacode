@@ -15,8 +15,8 @@ import numpy as np
 import tensorflow as tf
 from scipy import special
 import sys 
-sys.path.append(r"G:\\PhotonLabs\\src\\metabox")
-from metabox import propagation
+sys.path.append(r"D:\\metacode\\metabox3")
+from metabox3 import propagation
 
 
 def get_ideal_mtf_volume(

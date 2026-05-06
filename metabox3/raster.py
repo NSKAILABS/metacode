@@ -17,9 +17,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 import sys 
-sys.path.append(r"G:\\PhotonLabs\\src\\metabox")
+sys.path.append(r"D:\\metacode\\metabox3")
 if TYPE_CHECKING:
-    from metabox.utils import CoordType, ParameterType
+    from metabox3.utils import CoordType, ParameterType
 
 
 @dataclasses.dataclass

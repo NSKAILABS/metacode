@@ -19,8 +19,8 @@ import numpy as np
 import tensorflow as tf
 from tqdm.keras import TqdmCallback
 import sys 
-sys.path.append(r"G:\\PhotonLabs\\src\\metabox")
-from metabox import rcwa, utils
+sys.path.append(r"D:\\metacode\\metabox3")
+from metabox3 import rcwa, utils
 
 
 @dataclasses.dataclass
@@ -67,7 +67,10 @@ class SimulationLibrary:
     def get_training_y(self) -> np.ndarray:
         """Returns the training output."""
         output_values = self.simulation_output
-        return output_values.numpy().reshape(-1, 2)
+        if hasattr(output_values, "numpy"):
+            output_values = output_values.numpy()
+            
+        return np.asarray(output_values).reshape(-1, 2)
 
     def save(self, name: str, path: str, overwrite: bool = False):
         """Saves the simulation library."""

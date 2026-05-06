@@ -21,7 +21,7 @@ import numpy as np
 import tensorflow as tf
 
 if TYPE_CHECKING:
-    from metabox.utils import ParameterType
+    from metabox3.utils import ParameterType
 
 
 def expand_and_tile_np(

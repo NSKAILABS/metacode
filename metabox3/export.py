@@ -7,23 +7,27 @@ Uses gdsfactory 9.28.1+ for GDS operations.
 Compatible with Python 3.11.9+
 """
 from __future__ import annotations
-
+import uuid
 import os
 from typing import TYPE_CHECKING
 
 import numpy as np
 import tensorflow as tf
 import sys 
-sys.path.append(r"G:\\PhotonLabs\\src\\metabox")
-from metabox import expansion
+sys.path.append(r"D:\\metacode\\metabox3")
+from metabox3 import expansion
 
 if TYPE_CHECKING:
-    from metabox import assembly, rcwa
+    from metabox3 import assembly, rcwa
 
 # Optional import for gdsfactory
 try:
     import gdsfactory as gf
     HAS_GDSFACTORY = True
+    try:
+        gf.gpdk.PDK.activate()
+    except Exception:
+        pass
 except ImportError:
     HAS_GDSFACTORY = False
 
@@ -54,8 +58,12 @@ def unit_cell_to_gds_shape(
     for shape in cell.layers[layer].shapes:
         vertices = []
         for vertex in shape.get_vertices():
-            # Convert to microns
-            vertices.append((vertex[0] * 1e6, vertex[1] * 1e6))
+            vx, vy = vertex[0], vertex[1]
+            if hasattr(vx, "numpy"): vx = float(vx.numpy())
+            else: vx = float(vx)
+            if hasattr(vy, "numpy"): vy = float(vy.numpy())
+            else: vy = float(vy)
+            vertices.append((vx * 1e6, vy * 1e6))
         
         # Create polygon from vertices
         polygon = gf.kdb.DPolygon([gf.kdb.DPoint(x, y) for x, y in vertices])
@@ -195,7 +203,7 @@ def generate_noncircular_gds(
         export_directory = "./gds_export/"
 
     # Create main device component
-    device = gf.Component("metasurface")
+    device = gf.Component(name=f"metasurface_{uuid.uuid4().hex[:8]}")
 
     periodicity = metasurface.atom_2d.period * 1e6  # Convert to microns
     atom_positions = metasurface.get_atom_positions().reshape([-1, 2])
@@ -227,7 +235,7 @@ def generate_noncircular_gds(
             continue
             
         # Create a named cell for this unit
-        cell = gf.Component(f"cell_{name_index}")
+        cell = gf.Component(name=f"cell_{name_index}_{uuid.uuid4().hex[:8]}")
         cell.add_ref(polygon_component)
         
         # Add reference at the correct position
@@ -296,7 +304,7 @@ def generate_gds(
         export_directory = "./gds_export/"
 
     # Create main device component
-    device = gf.Component("metasurface")
+    device = gf.Component(name=f"metasurface_{uuid.uuid4().hex[:8]}")
 
     periodicity = metasurface.atom_1d.period * 1e6  # Convert to microns
     n_pixels_radial = metasurface.n_pixels_radial
@@ -331,7 +339,7 @@ def generate_gds(
             continue
             
         # Create a named cell for this radial position
-        cell = gf.Component(f"radial_{radial_ix}")
+        cell = gf.Component(name=f"radial_{radial_ix}_{uuid.uuid4().hex[:8]}")
         cell.add_ref(polygon_component)
         
         # Get all positions along this radius circle
@@ -425,11 +433,11 @@ def export_array_to_gds(
     if export_directory is None:
         export_directory = "./gds_export/"
     
-    device = gf.Component("array")
+    device = gf.Component(name=f"array_{uuid.uuid4().hex[:8]}")
     
     for idx, (cell, pos) in enumerate(zip(unit_cells, positions)):
         component = unit_cell_to_gds_shape(cell, layer=layer, gds_layer=gds_layer)
-        cell_component = gf.Component(f"cell_{idx}")
+        cell_component = gf.Component(name=f"cell_{idx}_{uuid.uuid4().hex[:8]}")
         cell_component.add_ref(component)
         
         # Convert position to microns
