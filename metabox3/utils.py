@@ -15,7 +15,7 @@ import tensorflow as tf
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 import sys 
-sys.path.append(r"G:\\PhotonLabs\\src\\metabox")
+sys.path.append(r"D:\\metacode\\metabox3")
 
 @contextmanager
 def suppress_stdout_stderr():

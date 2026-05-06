@@ -24,9 +24,9 @@ import tensorflow as tf
 import tqdm
 from matplotlib.ticker import EngFormatter
 import sys 
-sys.path.append(r"G:\\PhotonLabs\\src\\metabox")
-from metabox import expansion, metrics, modeling, propagation, rcwa, utils
-from metabox.utils import Incidence
+sys.path.append(r"D:\\metacode\\metabox3")
+from metabox3 import expansion, metrics, modeling, propagation, rcwa, utils
+from metabox3.utils import Incidence
 
 # Suppress tensorflow warnings
 tf.get_logger().setLevel(logging.ERROR)

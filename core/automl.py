@@ -412,7 +412,7 @@ class MetalensSimulator:
     def _check_metabox() -> bool:
         try:
             sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-            from metabox import rcwa, assembly, utils  # noqa: F401
+            from metabox3 import rcwa, assembly, utils  # noqa: F401
             return True
         except ImportError:
             return False
@@ -426,7 +426,7 @@ class MetalensSimulator:
     def _simulate_metabox(self, params: MetalensDesignParams) -> dict:
         """Full RCWA simulation via metabox."""
         try:
-            from metabox import rcwa, utils, assembly
+            from metabox3 import rcwa, utils, assembly
 
             wl_m = params.wavelength_nm * 1e-9
             period_m = params.periodicity_nm * 1e-9

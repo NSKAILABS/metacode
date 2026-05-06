@@ -18,7 +18,7 @@ import numpy as np
 import tensorflow as tf
 from matplotlib.ticker import EngFormatter
 
-from metabox import expansion, utils
+from metabox3 import expansion, utils
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
@@ -46,7 +46,7 @@ class Field2D(FieldProperties):
 
     def modulated_by(self, other: Field2D) -> Field2D:
         """Modulate this field by another field."""
-        if not np.all(self.wavelength == other.wavelength):
+        if not np.all(np.asarray(self.wavelength) == np.asarray(other.wavelength)):
             raise ValueError(
                 f"Wavelengths mismatch: {self.wavelength} vs {other.wavelength}"
             )
@@ -85,9 +85,9 @@ class Field2D(FieldProperties):
             self = fine_field
             other = copy.deepcopy(fine_field)
             other.tensor = mod_tensor
-        if not np.all(self.phi == other.phi):
+        if not np.all(np.asarray(self.phi) == np.asarray(other.phi)):
             raise ValueError("angles_y are not the same.")
-        if not np.all(self.theta == other.theta):
+        if not np.all(np.asarray(self.theta) == np.asarray(other.theta)):
             raise ValueError("Angles are not the same.")
         if not self.tensor.shape == other.tensor.shape:
             if self.tensor.shape[-2] > other.tensor.shape[-2]:
