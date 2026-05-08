@@ -433,4 +433,7 @@ Each paper is mapped to specific functions and modules in the reading guide that
 
 ## Licence
 
-Internal research code. Treat the `metabox3/` directory under its upstream licence (Metabox / Apache 2.0); everything else under whatever licence you choose for the project. Add a `LICENSE` file at the project root before publishing.
+MetaOpticsAI is released under the Apache License, Version 2.0 — see the
+`LICENSE` file at the project root and `NOTICE` for third-party attributions.
+The bundled `metabox3/` directory retains its upstream Apache 2.0 licence
+headers.
