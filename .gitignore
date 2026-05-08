@@ -24,3 +24,7 @@ outputs/
 gui/__pycache__/
 
 \docs
+
+
+\.env
+analysis/__pycache__/
