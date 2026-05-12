@@ -1,30 +1,284 @@
-**pycache**/
+# =========================================================
+# MetaOpticsAI / MetaCode
+# Research-Grade AI + Nanophotonics Platform
+# =========================================================
+
+# =========================================================
+# PYTHON
+# =========================================================
+__pycache__/
 *.py[cod]
 *$py.class
+*.pyo
+*.pyd
+*.so
+
+# Compiled extensions
+*.dll
+*.dylib
+
+# Distribution / packaging
+.Python
+build/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+share/python-wheels/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# =========================================================
+# VIRTUAL ENVIRONMENTS
+# =========================================================
 .venv/
 venv/
 env/
-.env
-.env.*
-.vscode/
-.DS_Store
-Thumbs.db
-*.log
-build/
-dist/
-*.egg-info/
+ENV/
+.virtualenv/
+
+# =========================================================
+# JUPYTER / NOTEBOOKS
+# =========================================================
 .ipynb_checkpoints/
+*.nbconvert.ipynb
+
+# =========================================================
+# TESTING / COVERAGE
+# =========================================================
 .pytest_cache/
 .coverage
+.coverage.*
 htmlcov/
-*.dockerignore
+.cache/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
+# =========================================================
+# TYPE CHECKERS / LINTERS
+# =========================================================
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+.pyre/
+.pytype/
+
+.ruff_cache/
+
+# =========================================================
+# LOGS
+# =========================================================
+logs/
+*.log
+log.txt
+
+# =========================================================
+# ENV / SECRETS
+# =========================================================
+.env
+.env.*
+!.env.example
+
+# API KEYS
+secrets/
+credentials/
+*.pem
+*.key
+
+# =========================================================
+# OLLAMA / LLM CACHE
+# =========================================================
+ollama_cache/
+models_cache/
+hf_cache/
+transformers_cache/
+
+# =========================================================
+# MCP / TOOL OUTPUTS
+# =========================================================
 outputs/
-**/**pycache**/
+artifacts/
+generated/
+cache/
+temp/
+tmp/
 
-gui/__pycache__/
+# MCP runtime
+mcp_runtime/
+mcp_logs/
+mcp_sessions/
 
-\docs
+# =========================================================
+# RCWA / SIMULATION OUTPUTS
+# =========================================================
+simulations/
+simulation_cache/
+results/
+exports/
 
+*.h5
+*.hdf5
+*.npz
+*.npy
+*.mat
 
-\.env
+# Large field files
+fields/
+farfield/
+nearfield/
+
+# =========================================================
+# METABOX3 GENERATED DATA
+# =========================================================
+metamodels/
+phase_library/
+lut/
+lookup_tables/
+
+# Generated GDS
+*.gds
+*.gdsii
+
+# =========================================================
+# TENSORFLOW / PYTORCH
+# =========================================================
+checkpoints/
+runs/
+wandb/
+lightning_logs/
+tensorboard/
+
+*.ckpt
+*.pth
+*.pt
+*.onnx
+
+# =========================================================
+# DATASETS
+# =========================================================
+datasets/
+data/raw/
+data/intermediate/
+data/processed/
+
+# =========================================================
+# VISUALIZATION OUTPUTS
+# =========================================================
+figures/
+plots/
+animations/
+renders/
+
+*.mp4
+*.gif
+
+# =========================================================
+# FASTAPI / SERVER
+# =========================================================
+instance/
+.webassets-cache
+
+# =========================================================
+# VS CODE
+# =========================================================
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# =========================================================
+# PYCHARM
+# =========================================================
+.idea/
+*.iml
+
+# =========================================================
+# WINDOWS
+# =========================================================
+Thumbs.db
+Desktop.ini
+
+# =========================================================
+# MACOS
+# =========================================================
+.DS_Store
+
+# =========================================================
+# LINUX
+# =========================================================
+*~
+
+# =========================================================
+# GIT
+# =========================================================
+*.orig
+*.rej
+
+# =========================================================
+# NODE / FRONTEND
+# =========================================================
+node_modules/
+.next/
+out/
+dist-frontend/
+
+# =========================================================
+# DOCUMENTATION BUILDS
+# =========================================================
+docs/_build/
+site/
+
+# =========================================================
+# SCRIPTS GENERATED FILES
+# =========================================================
+*.bak
+*.tmp
+*.swp
+
+# =========================================================
+# SCIENTIFIC COMPUTING
+# =========================================================
+*.vtk
+*.vtu
+*.dat
+
+# =========================================================
+# ANALYSIS CACHE
+# =========================================================
 analysis/__pycache__/
+analysis/cache/
+
+# =========================================================
+# CUSTOM PROJECT PATHS
+# =========================================================
+
+# Ignore generated AutoML outputs
+AutoML/outputs/
+AutoML/cache/
+
+# Ignore generated metamodels
+outputs/metamodels/
+
+# Ignore temporary RCWA sweeps
+outputs/sweeps/
+
+# Ignore generated phase maps
+outputs/phase_maps/
+
+# Ignore debug images
+outputs/debug/
+
+# =========================================================
+# OPTIONAL: KEEP EMPTY DIRECTORIES
+# =========================================================
+!.gitkeep
