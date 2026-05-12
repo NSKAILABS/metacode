@@ -25,6 +25,16 @@ import time
 import uuid
 from pathlib import Path
 from typing import Any, Literal
+import base64
+import io 
+from mcp.types import ImageContent, TextContent 
+import json 
+
+
+import matplotlib
+matplotlib.use("Agg")  # headless — critical for tunneled servers
+import matplotlib.pyplot as plt
+
 
 import numpy as np
 from fastmcp import FastMCP
@@ -43,6 +53,33 @@ from analysis.mtf import compute_mtf
 from analysis.strehl import compute_strehl_ratio                 
 from analysis.zernike import zernike_decomposition                   
 
+
+
+def _fig_to_image_content(fig) -> ImageContent:
+    """Convert a matplotlib Figure to an MCP ImageContent block."""
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=110, bbox_inches="tight")
+    plt.close(fig)
+    buf.seek(0)
+    return ImageContent(
+        type="image",
+        data=base64.b64encode(buf.read()).decode("ascii"),
+        mimeType="image/png",
+    )
+
+
+def _array_to_image_content(arr: np.ndarray, title: str = "",
+                            cmap: str = "twilight") -> ImageContent:
+    """Render a 2D numpy array (e.g., a phase mask) as an ImageContent block."""
+    fig, ax = plt.subplots(figsize=(5, 5))
+    im = ax.imshow(arr, cmap=cmap)
+    ax.set_title(title)
+    ax.axis("off")
+    fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    return _fig_to_image_content(fig)
+
+
+
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s [%(name)s] %(message)s")
 log = logging.getLogger("metaoptics-mcp")
@@ -60,6 +97,45 @@ mcp = FastMCP(
         "next tool — never ask for the raw array contents."
     ),
 )
+
+
+
+@mcp.custom_route("/health", methods=["GET"])
+async def health(request):
+    from starlette.responses import JSONResponse
+    return JSONResponse({"status": "ok", "server": "MetaOpticsAI"})
+
+
+# Wrap the SSE app with CORS — needed for browser-side calls.
+# (Not strictly needed if Vercel calls server-to-server, but harmless.)
+def _add_cors(app):
+    from starlette.middleware.cors import CORSMiddleware
+    return CORSMiddleware(
+        app,
+        allow_origins=["*"],   # tighten to your Vercel URL in prod
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    
+    
+    
+
+# FastMCP doesn't expose a hook to wrap middleware before run(); for CORS the
+# cleanest path is to mount FastMCP's SSE app inside your own Starlette app:
+#
+#   from starlette.applications import Starlette
+#   from starlette.middleware import Middleware
+#   from starlette.middleware.cors import CORSMiddleware
+#   import uvicorn
+#
+#   app = Starlette(
+#       routes=mcp.sse_app().routes,
+#       middleware=[Middleware(CORSMiddleware, allow_origins=["*"],
+#                              allow_methods=["*"], allow_headers=["*"])],
+#   )
+#   uvicorn.run(app, host=args.host, port=args.port)
+#
+# Use this Starlette wrapper if Vercel's calls hit CORS errors.
 
 _OUTPUT_ROOT = settings.OUTPUT_DIR
 _RESOURCE_DIR = settings.RESOURCE_DIR
@@ -427,39 +503,41 @@ async def generate_phase_mask(params: PhaseMaskInput) -> dict[str, Any]:
     `export_gds`. Stage 3 of the canonical workflow."""
     pe = PhaseEngine()
     if params.mask_type == "fzl":
+        if params.focal_length_um is None:
+            raise ValueError("fzl requires focal_length_um")
         mask = pe.fresnel_zone_lens(
             params.wavelength_nm, params.focal_length_um,
             params.diameter_um, params.pixel_size_um, params.circular)
     elif params.mask_type == "axicon":
+        if params.cone_angle_deg is None:
+            raise ValueError("axicon requires cone_angle_deg")
         mask = pe.axicon(
             params.wavelength_nm, params.cone_angle_deg,
             params.diameter_um, params.pixel_size_um, params.circular)
     else:  # spp
+        if params.spp_charge is None:
+            raise ValueError("spp requires spp_charge")
         mask = pe.spiral_phase_plate(
             params.wavelength_nm, params.spp_charge,
             params.diameter_um, params.pixel_size_um, params.circular)
+        
+    handle = store.put("phase_mask", mask,
+                       type=params.type, wavelength_nm=params.wavelength_nm,
+                       diameter_um=params.diameter_um,
+                       pixel_size_um=params.pixel_size_um)
 
-    metadata = {
-        "type": params.mask_type,
-        "wavelength_nm": params.wavelength_nm,
-        "diameter_um": params.diameter_um,
-        "pixel_size_um": params.pixel_size_um,
-    }
-    if params.mask_type == "fzl":
-        metadata["focal_length_um"] = params.focal_length_um
-    elif params.mask_type == "axicon":
-        metadata["cone_angle_deg"] = params.cone_angle_deg
-    else:
-        metadata["spp_charge"] = params.spp_charge
-
-    handle = store.put("phase_mask", mask, **metadata)
-    return {
+    summary = {
         "handle": handle,
         "shape": list(mask.shape),
         "phase_min_rad": float(mask.min()),
         "phase_max_rad": float(mask.max()),
-        "metadata": metadata,
     }
+
+    title = f"{params.type.upper()} — λ={params.wavelength_nm}nm, Ø={params.diameter_um}µm"
+    return [
+        TextContent(type="text", text=json.dumps(summary)),
+        _array_to_image_content(mask, title=title, cmap="twilight"),
+    ]
 
 
 # =========================================================================
@@ -529,9 +607,26 @@ async def analyze_psf(params: PSFInput) -> dict[str, Any]:
 
     handle = store.put("psf", {"psf_2d": psf, "x_um": x_um, "y_um": y_um},
                        wavelength_nm=params.wavelength_nm)
-    return {"handle": handle, "strehl_ratio": float(strehl),
-            "peak_normalized": 1.0, "fwhm_x_um": fwhm_um,
-            "shape": list(psf.shape)}
+    
+    
+    summary = {
+        "handle": handle,
+        "strehl_ratio": float(strehl),
+        "fwhm_x_um": round(fwhm_um, 4),
+        "shape": list(psf.shape),
+        "wavelength_nm": params.wavelength_nm
+    }
+    
+    title = f"PSF Preview (Log Scale) — Strehl: {strehl:.3f}"
+    return [
+        TextContent(type="text", text=json.dumps(summary, indent=2)),
+        _array_to_image_content(
+            psf, 
+            title=title, 
+            cmap="inferno", 
+            norm=matplotlib.colors.LogNorm(vmin=max(psf.min(), 1e-6), vmax=psf.max())
+        ),
+    ]
 
 
 # =========================================================================
@@ -559,8 +654,32 @@ async def analyze_mtf(params: MTFInput) -> dict[str, Any]:
         "mtf_radial": mtf_radial.tolist(),
         "mtf_diffraction_limit": mtf_diff.tolist(),
     })
-    return {"handle": handle, "mtf50_lpmm": mtf50,
-            "cutoff_lpmm": float(freqs[-1])}
+    
+    
+    summary = {
+        "handle": handle,
+        "mtf50_lpmm": round(mtf50, 2),
+        "cutoff_lpmm": float(freqs[-1])
+    }
+
+    # 4. Create the Plot Figure manually to use _fig_to_image_content
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.plot(freqs, mtf_diff, 'k--', label="Diffraction Limit", alpha=0.7)
+    ax.plot(freqs, mtf_radial, 'r-', linewidth=2, label="Calculated MTF")
+    ax.axhline(0.5, color='gray', linestyle=':', alpha=0.5)
+    
+    ax.set_title(f"MTF Analysis — MTF50: {mtf50:.2f} lp/mm")
+    ax.set_xlabel("Spatial Frequency (lp/mm)")
+    ax.set_ylabel("Modulation")
+    ax.legend()
+    ax.grid(True, linestyle='--', alpha=0.5)
+    ax.set_ylim(0, 1.05)
+
+    # Use your existing helper!
+    return [
+        TextContent(type="text", text=json.dumps(summary, indent=2)),
+        _fig_to_image_content(fig)
+    ]
 
 
 # =========================================================================
@@ -574,17 +693,58 @@ class ZernikeInput(BaseModel):
 
 
 @mcp.tool
-async def zernike_decompose(params: ZernikeInput) -> dict[str, Any]:
-    """Decompose a phase mask into Zernike polynomial coefficients to
-    diagnose specific aberrations (defocus, astigmatism, coma, spherical)."""
+async def zernike_decompose(params: ZernikeInput) -> list:
+    """Decompose phase into Zernike coefficients and return a bar chart of aberrations."""
+    
+    # 1. Fetch and Decompose
     mask = store.get(params.mask_handle, expected_kind="phase_mask").payload
     coeffs, names = zernike_decomposition(mask, n_terms=params.n_terms)
+    
+    # Store raw coefficients
     handle = store.put("zernike", {"coefficients": coeffs, "names": names})
-    sorted_terms = sorted(coeffs.items(), key=lambda kv: abs(kv[1]), reverse=True)[:5]
-    top = [{"noll": j, "name": names.get(j, f"Z_{j}"), "coeff_rad": v}
-           for j, v in sorted_terms]
-    return {"handle": handle, "top_aberrations": top, "n_terms": params.n_terms}
+    
+    # 2. Identify top aberrations for text summary
+    sorted_terms = sorted(coeffs.items(), key=lambda kv: abs(kv[1]), reverse=True)
+    top_5 = sorted_terms[:5]
+    
+    top_metadata = [
+        {"noll": j, "name": names.get(j, f"Z_{j}"), "coeff_rad": round(v, 4)}
+        for j, v in top_5
+    ]
 
+    # 3. Create Bar Chart Visualization
+    # We'll plot the first N terms or just the ones with significant magnitude
+    plot_terms = sorted_terms[:max(15, params.n_terms // 2)] # Show significant terms
+    
+    labels = [names.get(j, f"Z_{j}") for j, v in plot_terms]
+    values = [v for j, v in plot_terms]
+    
+    fig, ax = plt.subplots(figsize=(8, 5))
+    colors_list = ['red' if v < 0 else 'blue' for v in values]
+    
+    bars = ax.barh(labels[::-1], values[::-1], color=colors_list[::-1], alpha=0.7)
+    ax.axvline(0, color='black', linewidth=0.8)
+    
+    ax.set_title(f"Zernike Decomposition (First {len(plot_terms)} Terms)")
+    ax.set_xlabel("Coefficient Magnitude (Radians)")
+    ax.grid(axis='x', linestyle='--', alpha=0.6)
+    
+    # Add labels to the ends of the bars for clarity
+    ax.bar_label(bars, fmt='%.3f', padding=3)
+    
+    plt.tight_layout()
+
+    # 4. Prepare Metadata
+    summary = {
+        "handle": handle,
+        "top_aberrations": top_metadata,
+        "n_terms_analyzed": params.n_terms
+    }
+
+    return [
+        TextContent(type="text", text=json.dumps(summary, indent=2)),
+        _fig_to_image_content(fig)
+    ]
 
 # =========================================================================
 #  TOOL 10 — export_gds (existing, output dir from settings)
@@ -751,7 +911,7 @@ async def search_knowledge(params: SearchInput) -> dict[str, Any]:
     (the same one used by core/automl.py's Self-RAG pipeline).
 
     The corpus is summarised in the `photonics://papers` resource (BibTeX)."""
-    from core.automl import MetalensKnowledgeBase  # noqa: WPS433
+    from AutoML.automl import MetalensKnowledgeBase  # noqa: WPS433
     docs = MetalensKnowledgeBase().retrieve(params.query, k=params.top_k)
     return {
         "results": [{"text": d.page_content[:1500],
@@ -857,7 +1017,7 @@ class SubmitJobInput(BaseModel):
 
 def _run_automl_job(job_id: str, requirement: str) -> None:
     try:
-        from core.automl import MetalensAutoML  # noqa: WPS433
+        from AutoML.automl import MetalensAutoML  # noqa: WPS433
         with _JOB_LOCK:
             _JOBS[job_id]["status"] = "running"
         result = MetalensAutoML(
@@ -924,20 +1084,24 @@ async def list_artifacts(kind: ArtifactKind | None = None) -> list[dict[str, Any
 # =========================================================================
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="MetaOpticsAI MCP server (v2)")
-    parser.add_argument("--http", action="store_true",
-                        help="Run with streamable-http transport (default: stdio)")
-    parser.add_argument("--port", type=int, default=settings.SERVER_PORT)
-    parser.add_argument("--host", default=settings.SERVER_HOST)
+    parser = argparse.ArgumentParser(description="MetaOpticsAI MCP server")
+    parser.add_argument("--transport", choices=["stdio", "sse", "http"],
+                        default="stdio",
+                        help="Transport: stdio (Claude Desktop), sse (Next.js orchestrator), "
+                             "or http (Streamable HTTP, recommended for new clients)")
+    parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--host", default="0.0.0.0",
+                        help="Bind address. Use 0.0.0.0 when fronted by cloudflared.")
     args = parser.parse_args()
 
-    log.info("MetaOpticsAI MCP server v2 — Ollama backend at %s (model: %s)",
-             settings.OLLAMA_BASE_URL, settings.OLLAMA_MODEL)
-    log.info("Output dir: %s", settings.OUTPUT_DIR)
-    log.info("Resources : %s", settings.RESOURCE_DIR)
-
-    if args.http:
-        log.info("Starting HTTP server on %s:%s", args.host, args.port)
+    if args.transport == "sse":
+        log.info(f"Starting SSE server on {args.host}:{args.port}")
+        # FastMCP exposes two endpoints under SSE:
+        #   GET  /sse       → opens the event stream
+        #   POST /messages  → client posts JSON-RPC requests
+        mcp.run(transport="sse", host=args.host, port=args.port)
+    elif args.transport == "http":
+        log.info(f"Starting Streamable HTTP server on {args.host}:{args.port}")
         mcp.run(transport="http", host=args.host, port=args.port)
     else:
         log.info("Starting stdio server")

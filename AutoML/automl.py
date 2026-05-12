@@ -45,23 +45,18 @@ from typing_extensions import TypedDict
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("MetaOpticsAI.AutoML")
 
-# ─────────────────────────────────────────────────────────────────────────────
 # CONSTANTS
-# ─────────────────────────────────────────────────────────────────────────────
 
-OLLAMA_MODEL       = "deepseek-r1:7b"    # Best for physics / math reasoning
-OLLAMA_EMBED_MODEL = "nomic-embed-text"  # Lightweight embedding model
+OLLAMA_MODEL       = "qwen2.5:7b"   
+OLLAMA_EMBED_MODEL = "nomic-embed-text" 
 OLLAMA_BASE_URL    = "http://localhost:11434"
 
 MAX_RETRIEVAL_RETRIES  = 3
 MAX_OPTIMIZE_ITERS     = 10
-FOM_TARGET_THRESHOLD   = 0.85           # Strehl ratio target
-DOCUMENT_GRADE_CUTOFF  = 0.6            # Relevance score threshold
+FOM_TARGET_THRESHOLD   = 0.85        
+DOCUMENT_GRADE_CUTOFF  = 0.6            
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# KNOWLEDGE BASE  (embedded metalens / photonics design corpus)
-# ─────────────────────────────────────────────────────────────────────────────
+# KNOWLEDGE BASE 
 
 METALENS_KNOWLEDGE_CORPUS: list[str] = [
     # ── Design Principles ──────────────────────────────────────────────────
@@ -214,28 +209,20 @@ METALENS_KNOWLEDGE_CORPUS: list[str] = [
     """,
 ]
 
-
-# ─────────────────────────────────────────────────────────────────────────────
 # STATE DEFINITION
-# ─────────────────────────────────────────────────────────────────────────────
 
 class AutoMLState(TypedDict):
     """LangGraph state for the AutoML metalens design pipeline."""
-    # ── Input ──────────────────────────────────────────────────────────────
-    user_requirements:      str             # Natural language design requirements
-    design_constraints:     dict            # Parsed hard constraints
+    user_requirements:      str             
+    design_constraints:     dict      
 
-    # ── RAG ────────────────────────────────────────────────────────────────
-    query:                  str             # Current retrieval query
-    retrieved_documents:    list[str]       # Retrieved document texts
-    document_grades:        list[float]     # Relevance scores [0,1]
-    retrieval_retries:      int             # How many times we've re-retrieved
+    query:                  str           
+    retrieved_documents:    list[str]      
+    document_grades:        list[float]   
+    retrieval_retries:      int            
 
-    # ── Design Parameters ──────────────────────────────────────────────────
     design_params:          dict            # Current metalens design parameters
     param_history:          list[dict]      # History of all parameter dicts tried
-
-    # ── Simulation ─────────────────────────────────────────────────────────
     simulation_results:     dict            # Latest simulation output
     fom_history:            list[float]     # FOM (Strehl) over iterations
 
