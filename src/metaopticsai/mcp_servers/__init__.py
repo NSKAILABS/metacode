@@ -1,0 +1,1 @@
+"""FastMCP server processes — thin shells over the tool layer."""

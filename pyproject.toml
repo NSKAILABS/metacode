@@ -1,0 +1,120 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "metaopticsai"
+version = "0.2.0"
+description = "Autonomous AI-driven computational nanophotonics & metasurface design platform"
+authors = [{ name = "Dishant and MetaOpticsAI contributors" }]
+license = { text = "Apache-2.0" }
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+
+dependencies = [
+    # Core scientific stack
+    "numpy>=1.26,<2.0",
+    "scipy>=1.11",
+    "matplotlib>=3.8",
+    "pillow>=10.0",
+    "openpyxl>=3.1",
+
+    # Pydantic + config
+    "pydantic>=2.6",
+    "pydantic-settings>=2.2",
+    "python-dotenv>=1.0",
+
+    # MCP & FastAPI transport
+    "fastmcp>=0.4",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "starlette>=0.36",
+
+    # LangChain + LangGraph orchestration
+    "langchain-core>=0.2",
+    "langchain-community>=0.2",
+    "langchain-text-splitters>=0.2",
+    "langgraph>=0.2",
+    "typing-extensions>=4.10",
+
+    # LLM providers
+    "langchain-ollama>=0.1",
+    "langchain-groq>=0.1",
+    "langchain-anthropic>=0.1",
+    "anthropic>=0.25",
+
+    # RAG
+    "faiss-cpu>=1.8",
+
+    # Layout / GDS
+    "gdsfactory>=9.34",
+
+    # Utilities
+    "tqdm>=4.66",
+    "dill>=0.3.8",
+    "requests>=2.31",
+]
+
+[project.optional-dependencies]
+tf = ["tensorflow>=2.15,<2.17"]  # metabox3 backend
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=4.1",
+    "ruff>=0.3",
+    "mypy>=1.9",
+    "import-linter>=2.0",
+]
+
+[project.scripts]
+metaoptics-mcp = "metaopticsai.mcp_servers.all_in_one.server:main"
+metaoptics-workflow = "scripts.run_workflow:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
+ignore = ["E501"]   # handled by formatter
+
+[tool.importlinter]
+root_packages = ["metaopticsai"]
+
+[[tool.importlinter.contracts]]
+name = "Domain leaf"
+type = "forbidden"
+source_modules = ["metaopticsai.domain", "metaopticsai.store", "metaopticsai.configs", "metaopticsai.utils"]
+forbidden_modules = [
+    "metaopticsai.physics", "metaopticsai.tools",
+    "metaopticsai.mcp_servers", "metaopticsai.workflows",
+    "metaopticsai.llm", "metaopticsai.rag",
+]
+
+[[tool.importlinter.contracts]]
+name = "Only physics/backends imports metabox3"
+type = "forbidden"
+source_modules = [
+    "metaopticsai.tools", "metaopticsai.workflows",
+    "metaopticsai.mcp_servers", "metaopticsai.analysis",
+    "metaopticsai.phase", "metaopticsai.fabrication",
+    "metaopticsai.optimization", "metaopticsai.rag",
+    "metaopticsai.llm", "metaopticsai.orchestration",
+]
+forbidden_modules = ["metaopticsai.vendor.metabox3"]
+
+[[tool.importlinter.contracts]]
+name = "MCP layer doesn't reach into physics"
+type = "forbidden"
+source_modules = ["metaopticsai.mcp_servers"]
+forbidden_modules = [
+    "metaopticsai.physics.backends",
+    "metaopticsai.vendor",
+]
