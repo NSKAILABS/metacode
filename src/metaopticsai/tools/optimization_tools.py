@@ -1,5 +1,5 @@
 """Optimization-related tools: optimize_metalens, train_metamodel,
-submit_job, get_job, list_artifacts."""
+get_job, list_artifacts."""
 from __future__ import annotations
 
 import logging
@@ -12,7 +12,7 @@ from metaopticsai.physics.backends.base import BackendRegistry
 from metaopticsai.tools.base import BaseTool
 from metaopticsai.tools.schemas.optimization import (
     OptimizeInput, OptimizeOutput,
-    TrainMetamodelInput, JobSubmitOutput, SubmitAutoMLInput,
+    TrainMetamodelInput, JobSubmitOutput,
 )
 
 log = logging.getLogger(__name__)
@@ -135,8 +135,6 @@ class TrainMetamodelTool(BaseTool):
         self.needs_store = True  # set per-instance; class default is False
 
     def _run(self, p: TrainMetamodelInput) -> JobSubmitOutput:
-        if not settings.server.heavy_jobs_enabled:
-            raise RuntimeError("Heavy jobs disabled (MCP_HEAVY_JOBS_ENABLED=false).")
         if not self.backends.get("metabox").is_available():
             raise RuntimeError("train_metamodel requires the metabox backend (TF).")
 
@@ -206,51 +204,6 @@ def _train_metamodel_worker(
 
 
 # ─────────────────────────────────────────────────────────────────────────
-# AutoML submission
-# ─────────────────────────────────────────────────────────────────────────
-
-class SubmitAutoMLTool(BaseTool):
-    """Submits the full Self-RAG LangGraph AutoML workflow as a background job."""
-    name = "submit_job"
-    description = (
-        "Submit a long-running AutoML metalens design job. Returns a job_id "
-        "to poll with `get_job`."
-    )
-    Input = SubmitAutoMLInput
-    Output = JobSubmitOutput
-
-    def __init__(self, store, job_manager, controller_factory):
-        super().__init__(store=store)
-        self.job_manager = job_manager
-        self.controller_factory = controller_factory
-        self.needs_store = True
-
-    def _run(self, p: SubmitAutoMLInput) -> JobSubmitOutput:
-        if not settings.server.heavy_jobs_enabled:
-            raise RuntimeError("Heavy jobs disabled (MCP_HEAVY_JOBS_ENABLED=false).")
-        job_id = self.job_manager.submit(
-            "automl",
-            _automl_worker,
-            p.requirement,
-            self.controller_factory,
-            metadata={"requirement": p.requirement[:200]},
-        )
-        return JobSubmitOutput(
-            job_id=job_id, status="queued",
-            extra={"requirement": p.requirement[:200]},
-        )
-
-
-def _automl_worker(requirement, controller_factory, *, _manager, _job_id, **_kwargs):
-    """AutoML worker — instantiates the controller in the worker thread to
-    avoid blocking the request thread with embedding-model warmup."""
-    import asyncio
-    controller = controller_factory()
-    _manager.update_status(_job_id, "running")
-    return asyncio.run(controller.design_metalens(requirement))
-
-
-# ─────────────────────────────────────────────────────────────────────────
 # Job polling
 # ─────────────────────────────────────────────────────────────────────────
 
@@ -291,7 +244,7 @@ class ListArtifactsTool(BaseTool):
     name = "list_artifacts"
     description = (
         "List handles currently in the in-process store, optionally filtered "
-        "by kind. Useful for the LLM to recover state after a context reset."
+        "by kind. Useful for recovering state after a context reset."
     )
     Input = _ListArtifactsInput
     needs_store = True

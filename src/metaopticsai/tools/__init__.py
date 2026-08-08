@@ -1,13 +1,11 @@
-"""Tool layer — single composition point for all 15+ scientific tools.
+"""Tool layer — single composition point for scientific tools.
 
 Use:
     from metaopticsai.tools import build_tool_registry
-    registry = build_tool_registry(store, backends, job_manager, controller_factory)
+    registry = build_tool_registry(store, backends, job_manager)
 
-The registry is consumed by:
-  - the MCP adapter (mcp_servers/common/adapter.py)
-  - LangGraph nodes (workflows/nodes/*.py)
-  - direct programmatic access (tests, notebooks)
+Consumed by direct programmatic access (tests, notebooks) and any external
+caller that injects a store implementation.
 
 NOTE: Concrete tool classes are imported lazily inside `build_tool_registry`
 so that `from metaopticsai.tools import BaseTool` stays cheap and doesn't
@@ -15,18 +13,14 @@ drag in matplotlib/gdspy/scipy until you actually compose a registry.
 """
 from __future__ import annotations
 
-from typing import Callable
-
 from metaopticsai.physics.backends.base import BackendRegistry
-from metaopticsai.store.base import ArtifactStore
-from metaopticsai.tools.base import BaseTool, ToolRegistry
+from metaopticsai.tools.base import ArtifactStore, BaseTool, ToolRegistry
 
 
 def build_tool_registry(
     store: ArtifactStore,
     backends: BackendRegistry,
     job_manager=None,
-    controller_factory: Callable | None = None,
 ) -> ToolRegistry:
     """Single composition root for the full tool catalog.
 
@@ -34,9 +28,7 @@ def build_tool_registry(
         store: The ArtifactStore for handle-based payload sharing.
         backends: The simulation backend registry.
         job_manager: Optional JobManager for heavy/long-running tools.
-            When None, train_metamodel and submit_job are not registered.
-        controller_factory: Callable that returns a freshly-built
-            MetaOpticsController; required only by `submit_job`.
+            When None, train_metamodel is not registered.
     """
     # Lazy imports — keep `from metaopticsai.tools import BaseTool` cheap.
     from metaopticsai.tools.rcwa_tools import RunRCWASweepTool, GetFDTDLibraryTool
@@ -53,7 +45,7 @@ def build_tool_registry(
     )
     from metaopticsai.tools.gds_tools import ExportGDSTool
     from metaopticsai.tools.optimization_tools import (
-        OptimizeMetalensTool, TrainMetamodelTool, SubmitAutoMLTool,
+        OptimizeMetalensTool, TrainMetamodelTool,
         GetJobTool, ListArtifactsTool,
     )
 
@@ -88,8 +80,6 @@ def build_tool_registry(
     # ── 7. Heavy jobs (only if job_manager provided) ─────────────────────
     if job_manager is not None:
         reg.register(TrainMetamodelTool(store, backends, job_manager))
-        if controller_factory is not None:
-            reg.register(SubmitAutoMLTool(store, job_manager, controller_factory))
         reg.register(GetJobTool(store, job_manager))
 
     # ── 8. Bookkeeping ───────────────────────────────────────────────────

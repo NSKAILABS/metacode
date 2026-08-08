@@ -21,7 +21,7 @@ import numpy as np
 import tensorflow as tf
 
 if TYPE_CHECKING:
-    from src.metaopticsai.vendor.metabox3.utils import ParameterType
+    from ..utils import ParameterType
 
 
 def expand_and_tile_np(

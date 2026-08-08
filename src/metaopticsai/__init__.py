@@ -1,11 +1,11 @@
-"""MetaOpticsAI — AI-driven computational nanophotonics platform.
+"""MetaOpticsAI — computational nanophotonics platform.
 
-Top-level public API: prefer importing from the controller for most use cases.
+Core physics, phase, optimization, and analysis modules are importable directly:
 
-    from metaopticsai.orchestration.controller import MetaOpticsController
+    from metaopticsai.physics.backends.metabox import MetaboxBackend
+    from metaopticsai.optimization.gradient import GradientOptimizer
 
-Direct module access is supported but follow the dependency rules in
-pyproject.toml [tool.importlinter].
+Follow the dependency rules in pyproject.toml [tool.importlinter].
 """
 
 __version__ = "0.2.0"

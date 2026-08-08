@@ -1,34 +1,10 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.egg-info/
-.eggs/
-build/
-dist/
-.venv/
-venv/
-env/
+.claude
+.venv
+.sixth
+.vscode
+old_one
+scripts
 
-# Type & lint caches
-.mypy_cache/
-.ruff_cache/
-.pytest_cache/
-htmlcov/
-.coverage
-
-# IDE
-.vscode/
-.idea/
-*.swp
-.DS_Store
-
-# Project
+# LLM/MCP agent secrets (never commit real keys)
 .env
-outputs/
-*.gds
-basis_data/
-saved_lens_assemblies/
-saved_metamodels/
-tf_model/
-papers/*.pdf
+config/.env

@@ -37,8 +37,3 @@ class JobSubmitOutput(BaseModel):
     job_id: str
     status: str
     extra: dict = Field(default_factory=dict)
-
-
-class SubmitAutoMLInput(BaseModel):
-    requirement: str = Field(..., min_length=10, max_length=2000)
-    target_strehl: float = Field(0.85, ge=0.1, le=1.0)

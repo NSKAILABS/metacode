@@ -2,12 +2,11 @@
 
 A `BaseTool`:
   - declares Pydantic `Input` and (optionally) `Output` classes;
-  - implements `_run(params)` — sync OR async, returning Output, dict, or MCP
+  - implements `_run(params)` — sync OR async, returning Output, dict, or
     content blocks (list of TextContent/ImageContent);
-  - is callable directly: `await tool.call({...})`;
-  - is wrappable into a FastMCP `@mcp.tool` via `mcp_servers/common/adapter.py`.
+  - is callable directly: `await tool.call({...})`.
 
-Dependencies (store, backends, LLM provider) are *injected* in `__init__`.
+Dependencies (store, backends) are *injected* in `__init__`.
 There are no module-level globals.
 """
 from __future__ import annotations
@@ -15,11 +14,21 @@ from __future__ import annotations
 import inspect
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Generic, Iterator, TypeVar
+from typing import Any, Generic, Iterator, Protocol, TypeVar
 
 from pydantic import BaseModel
 
-from metaopticsai.store.base import ArtifactStore
+
+class ArtifactStore(Protocol):
+    """Structural interface for a handle-based artifact store.
+
+    Callers inject any object satisfying this shape; the tools layer does
+    not own a concrete implementation.
+    """
+
+    def get(self, handle: str, *, expected_kind: str | None = ...) -> Any: ...
+    def put(self, kind: str, payload: Any, **metadata: Any) -> str: ...
+    def list(self, kind: str | None = ...) -> list: ...
 
 log = logging.getLogger(__name__)
 

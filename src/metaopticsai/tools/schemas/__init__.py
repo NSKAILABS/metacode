@@ -9,7 +9,7 @@ from metaopticsai.tools.schemas.materials import MaterialIndexInput, MaterialInd
 from metaopticsai.tools.schemas.gds import GDSExportInput, GDSExportOutput
 from metaopticsai.tools.schemas.optimization import (
     OptimizeInput, OptimizeOutput,
-    TrainMetamodelInput, JobSubmitOutput, SubmitAutoMLInput,
+    TrainMetamodelInput, JobSubmitOutput,
 )
 
 __all__ = [
@@ -20,5 +20,5 @@ __all__ = [
     "MaterialIndexInput", "MaterialIndexOutput",
     "GDSExportInput", "GDSExportOutput",
     "OptimizeInput", "OptimizeOutput",
-    "TrainMetamodelInput", "JobSubmitOutput", "SubmitAutoMLInput",
+    "TrainMetamodelInput", "JobSubmitOutput",
 ]
